@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import random
 import hashlib
 import pycountry
+import os
 
 # Configuration
 CSV_FILE = "web_server_logs.csv"
@@ -205,7 +206,26 @@ for c in COUNTRIES:
     if c not in COUNTRY_REGIONS:
         COUNTRY_REGIONS[c] = "Unknown"
 REGION_WEIGHTS = {"Africa": 0.2, "Asia": 0.3, "Europe": 0.2, "North America": 0.15, "Oceania": 0.05, "South America": 0.1, "Unknown": 0.0}
-COUNTRY_WEIGHTS = [REGION_WEIGHTS.get(COUNTRY_REGIONS[c], 0.0) / sum(len([k for k, v in COUNTRY_REGIONS.items() if v == COUNTRY_REGIONS[c]]) for c in COUNTRIES) for c in COUNTRIES]
+
+# Calculate COUNTRY_WEIGHTS
+country_counts = {}
+for region in REGION_WEIGHTS:
+    count = sum(1 for c in COUNTRY_REGIONS if COUNTRY_REGIONS[c] == region)
+    country_counts[region] = count if count > 0 else 1  # Avoid division by zero
+COUNTRY_WEIGHTS = []
+for c in COUNTRIES:
+    region = COUNTRY_REGIONS[c]
+    region_weight = REGION_WEIGHTS.get(region, 0.0)
+    country_count = country_counts[region]
+    weight = region_weight / country_count if region_weight > 0 else 0.0
+    COUNTRY_WEIGHTS.append(weight)
+# Normalize weights to sum to 1
+total_weight = sum(COUNTRY_WEIGHTS)
+if total_weight > 0:
+    COUNTRY_WEIGHTS = [w / total_weight for w in COUNTRY_WEIGHTS]
+else:
+    COUNTRY_WEIGHTS = [1.0 / len(COUNTRIES)] * len(COUNTRIES)  # Uniform distribution if no weights
+
 SALES_TEAM = ["Ms Catherine Jones", "Mr Daniel Mafia", "Ms Deliah Canny", "Mr Jack Melting", "Ms Emma Rain", "Mr Lee Thompson"]
 REQUEST_TYPES = {
     "job_request": "/api/jobs/submit",
@@ -359,7 +379,6 @@ def generate_sample_data(n_rows=1000):
 # Load data from CSV or generate sample data
 @st.cache_data
 def load_data():
-    import os
     if os.path.exists(CSV_FILE):
         try:
             df = pd.read_csv(CSV_FILE)
