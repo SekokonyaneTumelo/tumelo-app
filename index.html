@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Solutions 2025</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Static Header -->
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">2025 AI-Solutions</a>
+    </div>
+</nav>
+
+<div class="slideshow-container">
+    <div class="slide fade">
+        <img src="https://images.unsplash.com/photo-1655393001768-d946c97d6fd1?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTF8fGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2V8ZW58MHx8MHx8fDA%3D" alt="Slide 1">
+    </div>
+    <div class="slide fade">
+        <img src="https://images.unsplash.com/photo-1593376893114-1aed528d80cf?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8N3x8YXJ0aWZpY2lhbCUyMGludGVsbGlnZW5jZXxlbnwwfHwwfHx8MA%3D%3D" alt="Slide 2">
+    </div>
+    <div class="slide fade">
+        <img src="https://images.unsplash.com/photo-1646583288948-24548aedffd8?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTR8fGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2V8ZW58MHx8MHx8fDA%3D" alt="Slide 3">
+    </div>
+    <a class="prev" onclick="plusSlides(-1)">❮</a>
+    <a class="next" onclick="plusSlides(1)">❯</a>
+</div>
+<br>
+
+<div class="dot-container">
+    <span class="dot" onclick="currentSlide(1)"></span>
+    <span class="dot" onclick="currentSlide(2)"></span>
+    <span class="dot" onclick="currentSlide(3)"></span>
+</div>
+
+<div class="container mt-5">
+    <h2 class="mb-4 text-center">Viewer Insights</h2>
+    <div id="viewer-insights" class="row">
+        <!-- Viewer insights will be populated dynamically -->
+    </div>
+    <div id="error-message" class="alert alert-info d-none">
+        No viewer insights available at the moment. Please ensure the API at http://localhost:5000/api/data is running.
+    </div>
+</div>
+
+<!-- Static Footer -->
+<footer class="bg-light text-center py-3">
+    <p>© 2025 AI-Solutions Pty ltd. All rights reserved.</p>
+</footer>
+
+<!-- Static Chatbot Placeholder -->
+<div class="chatbot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Fetch data from the Payris 2024 FunOlympics API
+async function fetchViewerInsights() {
+    const apiUrl = "http://localhost:5000/api/data";
+    const apiKey = "ai-solutions-key-2025"; // Adjust if different
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                "X-API-Key": apiKey
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error fetching API data:", error);
+        return null;
+    }
+}
+
+// Function to create a viewer insight card
+function createInsightCard(insight) {
+    const col = document.createElement("div");
+    col.className = "col-md-4 mb-4";
+
+    const card = document.createElement("div");
+    card.className = "card h-100 shadow-sm";
+
+    // Image
+    if (insight.image_path) {
+        const img = document.createElement("img");
+        img.src = insight.image_path;
+        img.className = "card-img-top";
+        img.alt = "Viewer Insight Image";
+        card.appendChild(img);
+    }
+
+    // Card Body
+    const cardBody = document.createElement("div");
+    cardBody.className = "card-body";
+
+    const title = document.createElement("h5");
+    title.className = "card-title";
+    title.textContent = insight.title;
+    cardBody.appendChild(title);
+
+    const sport = document.createElement("p");
+    sport.className = "card-text";
+    sport.innerHTML = `<strong>Sport:</strong> ${insight.sport}`;
+    cardBody.appendChild(sport);
+
+    const rating = document.createElement("p");
+    rating.className = "card-text";
+    rating.innerHTML = `<strong>Engagement Rating:</strong> ${"⭐".repeat(insight.rating)}`;
+    cardBody.appendChild(rating);
+
+    const description = document.createElement("p");
+    description.className = "card-text";
+    description.textContent = insight.description;
+    cardBody.appendChild(description);
+
+    card.appendChild(cardBody);
+
+    // Card Footer
+    const cardFooter = document.createElement("div");
+    cardFooter.className = "card-footer text-muted";
+    cardFooter.textContent = `Viewed on: ${new Date(insight.timestamp).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })}`;
+    card.appendChild(cardFooter);
+
+    col.appendChild(card);
+    return col;
+}
+
+// Populate viewer insights
+async function populateViewerInsights() {
+    const insightsContainer = document.getElementById("viewer-insights");
+    const errorMessage = document.getElementById("error-message");
+
+    const data = await fetchViewerInsights();
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        // Show error message
+        errorMessage.classList.remove("d-none");
+        // Use fallback data for testing
+        const fallbackData = [
+            {
+                title: "Test Viewer",
+                sport: "Swimming",
+                rating: 4,
+                description: "A test viewer watched Swimming using a Desktop device on Chrome. They spent 240 seconds on the platform, accessing via Direct.",
+                timestamp: new Date().toISOString(),
+                image_path: "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTV8fGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2V8ZW58MHx8MHx8fDA%3D"
+            }
+        ];
+        data = fallbackData;
+    } else {
+        errorMessage.classList.add("d-none");
+    }
+
+    // Map API data to viewer insights
+    const viewerInsights = data.map(log => {
+        const description = `A viewer from ${log.country || "unknown"} watched ${log.sport || "unknown"} using a ${log.device || "unknown"} device on ${log.browser || "unknown"}. ` +
+                           `They spent ${log.time_spent || 0} seconds on the platform, accessing via ${log.traffic_source || "unknown"}.`;
+        const timeSpent = parseInt(log.time_spent || 0);
+        const rating = Math.min(5, Math.max(1, Math.round(timeSpent / 60))); // Scale to 1-5 stars
+
+        return {
+            title: `Viewer from ${log.country || "unknown"}`,
+            sport: log.sport || "Unknown",
+            rating: rating,
+            description: description,
+            timestamp: log.timestamp || new Date().toISOString(),
+            image_path: "https://images.unsplash.com/photo-1591696331111-ef9586a5b17a?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTJ8fGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2V8ZW58MHx8MHx8fDA%3D"
+        };
+    });
+
+    // Populate the DOM
+    viewerInsights.forEach(insight => {
+        const card = createInsightCard(insight);
+        insightsContainer.appendChild(card);
+    });
+}
+
+// Slideshow functionality
+let slideIndex = 0;
+showSlides();
+
+function showSlides() {
+    let i;
+    let slides = document.getElementsByClassName("slide");
+    let dots = document.getElementsByClassName("dot");
+    for (i = 0; i < slides.length; i++) {
+        slides[i].style.display = "none";
+    }
+    slideIndex++;
+    if (slideIndex > slides.length) {slideIndex = 1}
+    for (i = 0; i < dots.length; i++) {
+        dots[i].className = dots[i].className.replace(" active", "");
+    }
+    slides[slideIndex-1].style.display = "block";
+    dots[slideIndex-1].className += " active";
+    setTimeout(showSlides, 3000);
+}
+
+function plusSlides(n) {
+    clearTimeout(slideTimeout);
+    showSlidesManually(slideIndex += n);
+}
+
+function currentSlide(n) {
+    clearTimeout(slideTimeout);
+    showSlidesManually(slideIndex = n);
+}
+
+let slideTimeout;
+function showSlidesManually(n) {
+    let i;
+    let slides = document.getElementsByClassName("slide");
+    let dots = document.getElementsByClassName("dot");
+    if (n > slides.length) {slideIndex = 1}
+    if (n < 1) {slideIndex = slides.length}
+    for (i = 0; i < slides.length; i++) {
+        slides[i].style.display = "none";
+    }
+    for (i = 0; i < dots.length; i++) {
+        dots[i].className = dots[i].className.replace(" active", "");
+    }
+    slides[slideIndex-1].style.display = "block";
+    dots[slideIndex-1].className += " active";
+    slideTimeout = setTimeout(showSlides, 3000);
+}
+
+// Load viewer insights on page load
+document.addEventListener("DOMContentLoaded", populateViewerInsights);
+</script>
+</body>
+</html>
