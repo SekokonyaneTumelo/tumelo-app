@@ -16,9 +16,16 @@ import random
 import hashlib
 import pycountry
 import os
+import logging
+import tempfile
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Configuration
-CSV_FILE = "web_server_logs.csv"
+CSV_FILE = os.path.join(tempfile.gettempdir(), "web_server_logs.csv")
+logger.info(f"Using CSV file path: {CSV_FILE}")
 st.set_page_config(
     layout="wide",
     page_title="AI-Solutions Global Sales Dashboard",
@@ -274,6 +281,7 @@ END_DATE = datetime(2025, 5, 18)
 
 # Generate sample data matching web_server_logs.py
 def generate_sample_data(n_rows=1000):
+    logger.info("Generating sample data")
     np.random.seed(42)
     date_range = [START_DATE + timedelta(days=x) for x in range((END_DATE - START_DATE).days)]
 
@@ -372,21 +380,27 @@ def generate_sample_data(n_rows=1000):
     df = df.drop_duplicates(subset=['timestamp', 'c-ip', 'request_type'], keep='last')
     try:
         df.to_csv(CSV_FILE, index=False)
+        logger.info(f"Sample data saved to {CSV_FILE}")
     except Exception as e:
+        logger.warning(f"Could not save sample data to CSV: {e}")
         st.warning(f"Could not save sample data to CSV: {e}")
     return df
 
 # Load data from CSV or generate sample data
 @st.cache_data
 def load_data():
+    logger.info("Loading data")
     if os.path.exists(CSV_FILE):
         try:
             df = pd.read_csv(CSV_FILE)
+            logger.info("Loaded data from CSV")
             st.info("Loaded data from CSV.")
         except Exception as e:
+            logger.warning(f"Could not load CSV: {e}. Generating sample data.")
             st.warning(f"Could not load CSV: {e}. Generating sample data.")
             df = pd.DataFrame()
     else:
+        logger.info("No CSV found. Generating sample data.")
         st.info("Generating sample data.")
         df = pd.DataFrame()
     
@@ -402,10 +416,12 @@ def load_data():
         df['is_anomaly'] = pd.to_numeric(df['is_anomaly'], errors='coerce', downcast='integer')
         df['converted'] = pd.to_numeric(df['converted'], errors='coerce', downcast='integer')
         df = df.dropna(subset=['timestamp', 'revenue', 'sc-status'])
+    logger.info("Data loaded successfully")
     return df
 
 # Perform anomaly detection using IsolationForest
 def detect_anomalies(df):
+    logger.info("Performing anomaly detection")
     features = ['revenue', 'session_duration', 'sc-status']
     X = df[features].fillna(0)
     iso_forest = IsolationForest(contamination=0.1, random_state=42)
@@ -415,6 +431,7 @@ def detect_anomalies(df):
 
 # Perform user behavior clustering using K-means
 def cluster_user_behavior(df):
+    logger.info("Performing user behavior clustering")
     features = ['revenue', 'session_duration', 'converted']
     X = df[features].fillna(0)
     scaler = StandardScaler()
@@ -426,6 +443,7 @@ def cluster_user_behavior(df):
 
 # Generate PDF report
 def generate_pdf_report(df):
+    logger.info("Generating PDF report")
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     c.setFillColor(colors.darkblue)
@@ -444,6 +462,7 @@ def generate_pdf_report(df):
 
 # Main dashboard
 def main():
+    logger.info("Starting main dashboard")
     st.markdown('<div class="header"><img src="https://plus.unsplash.com/premium_photo-1682124651258-410b25fa9dc0?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTN8fGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2V8ZW58MHx8MHx8fDA%3D" alt="Logo"> <h1>AI-Solutions Global Sales</h1></div>', unsafe_allow_html=True)
 
     with st.expander("Help & Instructions"):
@@ -463,6 +482,7 @@ def main():
 
     df = load_data()
     if df.empty:
+        logger.error("No data available")
         st.error("No data available. Please upload a CSV or try again.")
         return
 
@@ -493,6 +513,7 @@ def main():
                 required_columns = ['timestamp', 'c-ip', 'cs-method', 'cs-uri-stem', 'sc-status', 'revenue', 'cost', 'profit_loss', 'country', 'converted']
                 missing_columns = [col for col in required_columns if col not in df_upload.columns]
                 if missing_columns:
+                    logger.error(f"Invalid CSV format. Missing columns: {', '.join(missing_columns)}")
                     st.sidebar.error(f"Invalid CSV format. Missing columns: {', '.join(missing_columns)}")
                 else:
                     df_upload['c-ip'] = df_upload['c-ip'].apply(hash_ip)
@@ -505,9 +526,15 @@ def main():
                     df_upload['profit_loss'] = df_upload['profit_loss'].clip(lower=-df_upload['revenue'])
                     df_upload['session_duration'] = df_upload['session_duration'].clip(lower=0, upper=600)
                     df_upload = df_upload.drop_duplicates(subset=['timestamp', 'c-ip', 'request_type'], keep='last')
-                    df_upload.to_csv(CSV_FILE, index=False)
-                    st.sidebar.success("File processed successfully.")
+                    try:
+                        df_upload.to_csv(CSV_FILE, index=False)
+                        logger.info(f"Uploaded CSV saved to {CSV_FILE}")
+                        st.sidebar.success("File processed successfully.")
+                    except Exception as e:
+                        logger.warning(f"Could not save uploaded CSV: {e}")
+                        st.sidebar.warning(f"Could not save uploaded CSV: {e}")
             except Exception as e:
+                logger.error(f"Failed to process CSV: {str(e)}")
                 st.sidebar.error(f"Failed to process CSV: {str(e)}")
 
     filtered_df = df.copy()
@@ -594,7 +621,8 @@ def main():
             fig3.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig3, use_container_width=True)
         with col2:
-            st.markdown('<div class="metric-card">Profit Margin: {:.2f}%</div>'.format((filtered_df['profit_loss'].sum() / filtered_df['revenue'].sum() * 100)), unsafe_allow_html=True)
+            profit_margin = (filtered_df['profit_loss'].sum() / filtered_df['revenue'].sum() * 100) if filtered_df['revenue'].sum() > 0 else 0
+            st.markdown('<div class="metric-card">Profit Margin: {:.2f}%</div>'.format(profit_margin), unsafe_allow_html=True)
             fig4 = px.bar(filtered_df.groupby('sales_team_member')['profit_loss'].sum().reset_index(), x='sales_team_member', y='profit_loss', title="Profit by Team")
             fig4.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig4, use_container_width=True)
@@ -726,4 +754,5 @@ def main():
     st.markdown('<div class="footer">© 2025 AI-Solutions. All rights reserved.</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
+    logger.info("Application startup")
     main()
