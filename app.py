@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import requests
-from datetime import datetime, date, timedelta
-import os
 import io
 import numpy as np
 from sklearn.ensemble import IsolationForest
@@ -14,23 +11,23 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from streamlit_autorefresh import st_autorefresh
-import time
+from datetime import datetime, timedelta
+import random
+import hashlib
+import pycountry
 
 # Configuration
-API_URL = "http://localhost:5000/api/data"
-UPLOAD_URL = "http://localhost:5000/api/upload"
 CSV_FILE = "web_server_logs.csv"
-API_KEY = "ai-solutions-key-2025"
 st.set_page_config(
     layout="wide",
     page_title="AI-Solutions Global Sales Dashboard",
     page_icon="https://www.freepik.com/free-vector/global-technology-concept-with-globe-circuit_12152352.htm"
 )
 
-# Auto-refresh every 60 seconds
+# Auto-refresh every 120 seconds
 st_autorefresh(interval=120 * 1000, key="datarefresh")
 
-# Custom CSS with vibrant colors
+# Custom CSS
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap');
@@ -146,41 +143,236 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-# Fetch data from API or CSV with retry logic
+
+# Data configurations from web_server_logs.py
+COUNTRIES = [country.name for country in pycountry.countries]
+COUNTRY_REGIONS = {
+    "Algeria": "Africa", "Angola": "Africa", "Benin": "Africa", "Botswana": "Africa", "Burkina Faso": "Africa",
+    "Burundi": "Africa", "Cabo Verde": "Africa", "Cameroon": "Africa", "Central African Republic": "Africa",
+    "Chad": "Africa", "Comoros": "Africa", "Congo": "Africa", "Democratic Republic of the Congo": "Africa",
+    "Djibouti": "Africa", "Egypt": "Africa", "Equatorial Guinea": "Africa", "Eritrea": "Africa", "Eswatini": "Africa",
+    "Ethiopia": "Africa", "Gabon": "Africa", "Gambia": "Africa", "Ghana": "Africa", "Guinea": "Africa",
+    "Guinea-Bissau": "Africa", "Ivory Coast": "Africa", "Kenya": "Africa", "Lesotho": "Africa", "Liberia": "Africa",
+    "Libya": "Africa", "Madagascar": "Africa", "Malawi": "Africa", "Mali": "Africa", "Mauritania": "Africa",
+    "Mauritius": "Africa", "Mozambique": "Africa", "Namibia": "Africa", "Niger": "Africa", "Nigeria": "Africa",
+    "Rwanda": "Africa", "Sao Tome and Principe": "Africa", "Senegal": "Africa", "Seychelles": "Africa",
+    "Sierra Leone": "Africa", "Somalia": "Africa", "South Africa": "Africa", "South Sudan": "Africa",
+    "Sudan": "Africa", "Tanzania": "Africa", "Togo": "Africa", "Tunisia": "Africa", "Uganda": "Africa",
+    "Zambia": "Africa", "Zimbabwe": "Africa",
+    "Afghanistan": "Asia", "Bahrain": "Asia", "Bangladesh": "Asia", "Bhutan": "Asia", "Brunei Darussalam": "Asia",
+    "Cambodia": "Asia", "China": "Asia", "Cyprus": "Asia", "East Timor": "Asia", "India": "Asia", "Indonesia": "Asia",
+    "Iran": "Asia", "Iraq": "Asia", "Israel": "Asia", "Japan": "Asia", "Jordan": "Asia", "Kazakhstan": "Asia",
+    "Kuwait": "Asia", "Kyrgyzstan": "Asia", "Laos": "Asia", "Lebanon": "Asia", "Malaysia": "Asia", "Maldives": "Asia",
+    "Mongolia": "Asia", "Myanmar": "Asia", "Nepal": "Asia", "North Korea": "Asia", "Oman": "Asia", "Pakistan": "Asia",
+    "Palestine": "Asia", "Philippines": "Asia", "Qatar": "Asia", "Saudi Arabia": "Asia", "Singapore": "Asia",
+    "South Korea": "Asia", "Sri Lanka": "Asia", "Syria": "Asia", "Taiwan": "Asia", "Tajikistan": "Asia",
+    "Thailand": "Asia", "Turkey": "Asia", "Turkmenistan": "Asia", "United Arab Emirates": "Asia", "Uzbekistan": "Asia",
+    "Vietnam": "Asia", "Yemen": "Asia",
+    "Albania": "Europe", "Andorra": "Europe", "Austria": "Europe", "Belarus": "Europe", "Belgium": "Europe",
+    "Bosnia and Herzegovina": "Europe", "Bulgaria": "Europe", "Croatia": "Europe", "Czechia": "Europe",
+    "Denmark": "Europe", "Estonia": "Europe", "Finland": "Europe", "France": "Europe", "Germany": "Europe",
+    "Greece": "Europe", "Hungary": "Europe", "Iceland": "Europe", "Ireland": "Europe", "Italy": "Europe",
+    "Latvia": "Europe", "Liechtenstein": "Europe", "Lithuania": "Europe", "Luxembourg": "Europe", "Malta": "Europe",
+    "Moldova": "Europe", "Monaco": "Europe", "Montenegro": "Europe", "Netherlands": "Europe", "North Macedonia": "Europe",
+    "Norway": "Europe", "Poland": "Europe", "Portugal": "Europe", "Romania": "Europe", "Russia": "Europe",
+    "San Marino": "Europe", "Serbia": "Europe", "Slovakia": "Europe", "Slovenia": "Europe", "Spain": "Europe",
+    "Sweden": "Europe", "Switzerland": "Europe", "Ukraine": "Europe", "United Kingdom": "Europe",
+    "Vatican City": "Europe",
+    "Antigua and Barbuda": "North America", "Bahamas": "North America", "Barbados": "North America",
+    "Belize": "North America", "Canada": "North America", "Costa Rica": "North America", "Cuba": "North America",
+    "Dominica": "North America", "Dominican Republic": "North America", "El Salvador": "North America",
+    "Grenada": "North America", "Guatemala": "North America", "Haiti": "North America", "Honduras": "North America",
+    "Jamaica": "North America", "Mexico": "North America", "Nicaragua": "North America", "Panama": "North America",
+    "Saint Kitts and Nevis": "North America", "Saint Lucia": "North America", "Saint Vincent and the Grenadines": "North America",
+    "Trinidad and Tobago": "North America", "United States": "North America", "Aruba": "North America",
+    "Curaçao": "North America", "Sint Maarten": "North America", "Saint Martin": "North America", "Anguilla": "North America",
+    "Bermuda": "North America", "British Virgin Islands": "North America", "Cayman Islands": "North America",
+    "Greenland": "North America", "Montserrat": "North America", "Puerto Rico": "North America",
+    "Turks and Caicos Islands": "North America", "United States Virgin Islands": "North America",
+    "Australia": "Oceania", "Fiji": "Oceania", "Kiribati": "Oceania", "Marshall Islands": "Oceania",
+    "Micronesia": "Oceania", "Nauru": "Oceania", "New Zealand": "Oceania", "Palau": "Oceania",
+    "Papua New Guinea": "Oceania", "Samoa": "Oceania", "Solomon Islands": "Oceania", "Tonga": "Oceania",
+    "Tuvalu": "Oceania", "Vanuatu": "Oceania", "American Samoa": "Oceania", "Cook Islands": "Oceania",
+    "French Polynesia": "Oceania", "Guam": "Oceania", "New Caledonia": "Oceania", "Niue": "Oceania",
+    "Norfolk Island": "Oceania", "Northern Mariana Islands": "Oceania", "Pitcairn Islands": "Oceania",
+    "Tokelau": "Oceania", "Wallis and Futuna": "Oceania",
+    "Argentina": "South America", "Bolivia": "South America", "Brazil": "South America", "Chile": "South America",
+    "Colombia": "South America", "Ecuador": "South America", "Guyana": "South America", "Paraguay": "South America",
+    "Peru": "South America", "Suriname": "South America", "Uruguay": "South America", "Venezuela": "South America",
+    "Falkland Islands": "South America", "French Guiana": "South America"
+}
+for c in COUNTRIES:
+    if c not in COUNTRY_REGIONS:
+        COUNTRY_REGIONS[c] = "Unknown"
+REGION_WEIGHTS = {"Africa": 0.2, "Asia": 0.3, "Europe": 0.2, "North America": 0.15, "Oceania": 0.05, "South America": 0.1, "Unknown": 0.0}
+COUNTRY_WEIGHTS = [REGION_WEIGHTS.get(COUNTRY_REGIONS[c], 0.0) / sum(len([k for k, v in COUNTRY_REGIONS.items() if v == COUNTRY_REGIONS[c]]) for c in COUNTRIES) for c in COUNTRIES]
+SALES_TEAM = ["Ms Catherine Jones", "Mr Daniel Mafia", "Ms Deliah Canny", "Mr Jack Melting", "Ms Emma Rain", "Mr Lee Thompson"]
+REQUEST_TYPES = {
+    "job_request": "/api/jobs/submit",
+    "demo_booking": "/api/demo/schedule",
+    "ai_assistant_inquiry": "/api/assistant/inquire",
+    "promotion": "/api/event",
+    "registration": "/api/signup",
+    "support": "/api/contact",
+    "pricing": "/api/pricing",
+    "download": "/api/download",
+    "feedback": "/api/feedback",
+    "training": "/api/training",
+    "partnership": "/api/partnership",
+    "case_study": "/api/case_study",
+    "whitepaper": "/api/whitepaper",
+    "content": "/api/blog",
+    "faq": "/api/faq",
+    "purchase": "/api/checkout"
+}
+JOB_TYPES = {
+    "/api/jobs/submit/software": "software",
+    "/api/jobs/submit/engineering": "engineering",
+    "/api/jobs/submit/design": "design",
+    "/api/jobs/submit/ai_development": "ai_development",
+    "/api/jobs/submit/data_analytics": "data_analytics",
+    "/api/jobs/submit/project_management": "project_management",
+    "/api/jobs/submit/devops": "devops",
+    "/api/jobs/submit/quality_assurance": "quality_assurance",
+    "/api/jobs/submit/ui_ux": "ui_ux",
+    "/api/jobs/submit/cybersecurity": "cybersecurity"
+}
+METHODS = ["GET", "POST"]
+MARKETING_CHANNELS = ["direct", "email", "social"]
+CHANNEL_WEIGHTS = [0.5, 0.3, 0.2]
+CUSTOMER_TYPES = ["new", "returning"]
+CUSTOMER_WEIGHTS = [0.6, 0.4]
+DEVICE_TYPES = ["desktop", "mobile", "tablet"]
+DEVICE_WEIGHTS = [0.5, 0.4, 0.1]
+OPERATING_SYSTEMS = ["Windows", "macOS", "Linux", "iOS", "Android"]
+OS_WEIGHTS = [0.4, 0.2, 0.1, 0.15, 0.15]
+CUSTOMER_SEGMENTS = ["enterprise", "SMB", "individual"]
+SEGMENT_WEIGHTS = [0.3, 0.5, 0.2]
+STATUS_CODES = [200, 404, 500]
+START_DATE = datetime(2025, 1, 1)
+END_DATE = datetime(2025, 5, 18)
+
+# Generate sample data matching web_server_logs.py
+def generate_sample_data(n_rows=1000):
+    np.random.seed(42)
+    date_range = [START_DATE + timedelta(days=x) for x in range((END_DATE - START_DATE).days)]
+
+    def hash_ip(ip):
+        return hashlib.sha256(ip.encode()).hexdigest()[:16]
+
+    def infer_job_type(url, request_type):
+        if request_type != "job_request":
+            return ""
+        for pattern, job_type in JOB_TYPES.items():
+            if pattern in url:
+                return job_type
+        return ""
+
+    logs = []
+    for _ in range(n_rows):
+        timestamp = np.random.choice(date_range)
+        ip_address = ".".join(map(str, (np.random.randint(0, 256, 4))))
+        country = np.random.choice(COUNTRIES, p=COUNTRY_WEIGHTS)
+        region = COUNTRY_REGIONS[country]
+        sales_team_member = np.random.choice(SALES_TEAM)
+        request_type = np.random.choice(list(REQUEST_TYPES.keys()))
+        url = REQUEST_TYPES[request_type]
+        if request_type == "job_request":
+            job_suffix = np.random.choice(list(JOB_TYPES.keys())).split("/api/jobs/submit/")[1]
+            url = f"{url}/{job_suffix}"
+        method = np.random.choice(METHODS)
+        status_code = np.random.choice(STATUS_CODES)
+        session_duration = round(np.random.uniform(30, 600), 2)
+        demo_request = 1 if request_type == "demo_booking" else np.random.choice([0, 1])
+        user_agent = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/{np.random.randint(500, 600)}.36"
+        customer_type = np.random.choice(CUSTOMER_TYPES, p=CUSTOMER_WEIGHTS)
+        marketing_channel = np.random.choice(MARKETING_CHANNELS, p=CHANNEL_WEIGHTS)
+        device_type = np.random.choice(DEVICE_TYPES, p=DEVICE_WEIGHTS)
+        operating_system = np.random.choice(OPERATING_SYSTEMS, p=OS_WEIGHTS)
+        customer_segment = np.random.choice(CUSTOMER_SEGMENTS, p=SEGMENT_WEIGHTS)
+        job_type = infer_job_type(url, request_type)
+        if request_type == "job_request" and job_type:
+            revenue_ranges = {
+                "software": (150, 500),
+                "engineering": (120, 450),
+                "design": (100, 400),
+                "ai_development": (200, 600),
+                "data_analytics": (150, 500),
+                "project_management": (100, 350),
+                "devops": (120, 400),
+                "quality_assurance": (80, 300),
+                "ui_ux": (100, 400),
+                "cybersecurity": (150, 550)
+            }
+            revenue_range = revenue_ranges.get(job_type, (100, 500))
+            revenue = round(np.random.uniform(*revenue_range), 2)
+        else:
+            revenue = round(
+                np.random.uniform(50, 200) if request_type == "demo_booking" else
+                np.random.uniform(20, 100) if request_type == "ai_assistant_inquiry" else
+                np.random.uniform(200, 600) if request_type == "purchase" else
+                0, 2
+            )
+        cost = round(revenue * np.random.uniform(0.6, 0.8), 2)
+        profit_loss = round(revenue * np.random.uniform(0.5, 0.9) if revenue > 0 else 0, 2)
+        converted = 1 if np.random.random() < 0.6 else 0
+
+        logs.append({
+            "timestamp": timestamp.isoformat(),
+            "c-ip": hash_ip(ip_address),
+            "cs-method": method,
+            "cs-uri-stem": url,
+            "sc-status": status_code,
+            "region": region,
+            "sales_team_member": sales_team_member,
+            "request_type": request_type,
+            "job_type": job_type,
+            "demo_request_flag": demo_request,
+            "session_duration": session_duration,
+            "revenue": revenue,
+            "cost": cost,
+            "profit_loss": profit_loss,
+            "country": country,
+            "user_agent": user_agent,
+            "customer_type": customer_type,
+            "marketing_channel": marketing_channel,
+            "device_type": device_type,
+            "operating_system": operating_system,
+            "customer_segment": customer_segment,
+            "converted": converted,
+            "is_anomaly": 0
+        })
+
+    df = pd.DataFrame(logs)
+    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize(None).dt.tz_localize('UTC')
+    df['revenue'] = df['revenue'].clip(lower=0)
+    df['cost'] = df['cost'].clip(lower=0)
+    df['profit_loss'] = df['profit_loss'].clip(lower=-df['revenue'])
+    df['session_duration'] = df['session_duration'].clip(lower=0, upper=600)
+    df = df.drop_duplicates(subset=['timestamp', 'c-ip', 'request_type'], keep='last')
+    try:
+        df.to_csv(CSV_FILE, index=False)
+    except Exception as e:
+        st.warning(f"Could not save sample data to CSV: {e}")
+    return df
+
+# Load data from CSV or generate sample data
 @st.cache_data
 def load_data():
+    import os
     if os.path.exists(CSV_FILE):
         try:
-            os.remove(CSV_FILE)
+            df = pd.read_csv(CSV_FILE)
+            st.info("Loaded data from CSV.")
         except Exception as e:
-            st.warning(f"Could not clear CSV: {e}")
-    
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            headers = {"X-API-Key": API_KEY}
-            with st.spinner("Loading global sales data..."):
-                response = requests.get(API_URL, headers=headers, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                df = pd.DataFrame(data['transactions'])
-                break
-            elif response.status_code == 401:
-                st.error("Invalid API key.")
-                return pd.DataFrame()
-            else:
-                st.warning(f"API error: {response.status_code}. Retrying...")
-                time.sleep(2)
-        except requests.RequestException as e:
-            st.warning(f"API unavailable: {e}. Retrying...")
-            time.sleep(2)
+            st.warning(f"Could not load CSV: {e}. Generating sample data.")
+            df = pd.DataFrame()
     else:
-        st.warning("API unavailable after retries. Generating sample data.")
-        
+        st.info("Generating sample data.")
+        df = pd.DataFrame()
     
-    # Load from CSV as fallback if API fails
-    if df.empty and os.path.exists(CSV_FILE):
-        df = pd.read_csv(CSV_FILE)
+    if df.empty:
+        df = generate_sample_data()
     
     if not df.empty:
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce', utc=True)
@@ -199,7 +391,7 @@ def detect_anomalies(df):
     X = df[features].fillna(0)
     iso_forest = IsolationForest(contamination=0.1, random_state=42)
     df['is_anomaly'] = iso_forest.fit_predict(X)
-    df['is_anomaly'] = df['is_anomaly'].apply(lambda x: 1 if x == -1 else 0)  # Convert to 0 (normal) or 1 (anomaly)
+    df['is_anomaly'] = df['is_anomaly'].apply(lambda x: 1 if x == -1 else 0)
     return df
 
 # Perform user behavior clustering using K-means
@@ -233,20 +425,16 @@ def generate_pdf_report(df):
 
 # Main dashboard
 def main():
-    # Header
     st.markdown('<div class="header"><img src="https://plus.unsplash.com/premium_photo-1682124651258-410b25fa9dc0?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTN8fGFydGlmaWNpYWwlMjBpbnRlbGxpZ2VuY2V8ZW58MHx8MHx8fDA%3D" alt="Logo"> <h1>AI-Solutions Global Sales</h1></div>', unsafe_allow_html=True)
 
-
-    # Help Section
     with st.expander("Help & Instructions"):
         st.markdown("""
         - **Filters**: Use the sidebar to filter data by date, region, sales person, or request type. Click 'Reset Filters' to clear.
         - **Charts**: Interact with charts to explore trends and insights.
         - **Export**: Download reports in CSV or PDF format.
-        - **Errors**: If data fails to load, try refreshing or uploading a CSV file.
+        - **Data Source**: The dashboard uses locally generated or uploaded data for reliability.
         """)
 
-    # Refresh Button
     col1, col2 = st.columns([5, 1])
     with col1:
         st.write("")
@@ -256,14 +444,12 @@ def main():
 
     df = load_data()
     if df.empty:
-        st.error("No data available. Please check API or upload a CSV.")
+        st.error("No data available. Please upload a CSV or try again.")
         return
 
-    # Apply anomaly detection and clustering
     df = detect_anomalies(df)
     df = cluster_user_behavior(df)
 
-    # Sidebar with Filters and Upload
     st.sidebar.header("Filters")
     st.sidebar.markdown('<span class="help-tooltip" title="Select a date range to filter data">ℹ</span>', unsafe_allow_html=True)
     date_range = st.sidebar.date_input(
@@ -279,20 +465,32 @@ def main():
     if st.sidebar.button("Reset Filters"):
         st.rerun()
 
-    # Upload CSV Logs in Sidebar
     st.sidebar.header("Data Upload")
     uploaded_file = st.sidebar.file_uploader("Upload CSV Logs", type="csv", key="upload")
     if uploaded_file:
         with st.spinner("Processing upload..."):
-            files = {'file': (uploaded_file.name, uploaded_file, 'text/csv')}
-            headers = {"X-API-Key": API_KEY}
-            response = requests.post(UPLOAD_URL, files=files, headers=headers)
-            if response.status_code == 200:
-                st.sidebar.success(response.json().get("message", "Upload successful!"))
-            else:
-                st.sidebar.error(response.json().get("error", "Upload failed."))
+            try:
+                df_upload = pd.read_csv(uploaded_file)
+                required_columns = ['timestamp', 'c-ip', 'cs-method', 'cs-uri-stem', 'sc-status', 'revenue', 'cost', 'profit_loss', 'country', 'converted']
+                missing_columns = [col for col in required_columns if col not in df_upload.columns]
+                if missing_columns:
+                    st.sidebar.error(f"Invalid CSV format. Missing columns: {', '.join(missing_columns)}")
+                else:
+                    df_upload['c-ip'] = df_upload['c-ip'].apply(hash_ip)
+                    df_upload = df_upload.fillna({
+                        'revenue': 0, 'cost': 0, 'profit_loss': 0, 'session_duration': 0,
+                        'converted': 0, 'demo_request_flag': 0, 'job_type': ''
+                    })
+                    df_upload['revenue'] = df_upload['revenue'].clip(lower=0)
+                    df_upload['cost'] = df_upload['cost'].clip(lower=0)
+                    df_upload['profit_loss'] = df_upload['profit_loss'].clip(lower=-df_upload['revenue'])
+                    df_upload['session_duration'] = df_upload['session_duration'].clip(lower=0, upper=600)
+                    df_upload = df_upload.drop_duplicates(subset=['timestamp', 'c-ip', 'request_type'], keep='last')
+                    df_upload.to_csv(CSV_FILE, index=False)
+                    st.sidebar.success("File processed successfully.")
+            except Exception as e:
+                st.sidebar.error(f"Failed to process CSV: {str(e)}")
 
-    # Apply filters
     filtered_df = df.copy()
     if isinstance(date_range, tuple) and len(date_range) == 2:
         start_date, end_date = date_range
@@ -307,16 +505,15 @@ def main():
     if request_types:
         if "All" not in request_types:
             if "Requested" in request_types and "Not Requested" in request_types:
-                pass  # No filtering if both are selected
+                pass
             elif "Requested" in request_types:
                 filtered_df = filtered_df[filtered_df['demo_request_flag'] == 1]
             elif "Not Requested" in request_types:
                 filtered_df = filtered_df[filtered_df['demo_request_flag'] == 0]
 
-    # Tabs
     tabs = st.tabs(["Overview", "Financial Insights", "Customer & Temporal", "Technical Insights", "Data & AI"])
 
-    with tabs[0]:  # Overview
+    with tabs[0]:
         st.subheader("Global Sales Overview")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -331,7 +528,6 @@ def main():
             st.markdown(f'<div class="metric-card">Top Sales Member: {top_sales_member}<br>(${top_sales_revenue:,.2f})</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="chart-container">', unsafe_allow_html=True)
-        # First row: Revenue by Region and Top 5 Countries
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Revenue by Region")
@@ -345,7 +541,6 @@ def main():
             fig2.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig2, use_container_width=True)
 
-        # Second row: Sales by Customer Type and Profit by Region
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Sales by Customer Type")
@@ -359,20 +554,19 @@ def main():
             fig13.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig13, use_container_width=True)
 
-        # Third row: Conversion Rate by Region
         col1, col2 = st.columns([2, 1])
         with col1:
             st.subheader("Conversion Rate by Region")
             conversion_by_region = filtered_df.groupby('region')['converted'].mean().reset_index()
-            conversion_by_region['converted'] = conversion_by_region['converted'] * 100  # Convert to percentage
+            conversion_by_region['converted'] = conversion_by_region['converted'] * 100
             fig14 = px.bar(conversion_by_region, x='region', y='converted', title="Conversion Rate by Region (%)")
             fig14.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig14, use_container_width=True)
         with col2:
-            st.write("")  # Empty column for spacing
+            st.write("")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with tabs[1]:  # Financial Insights
+    with tabs[1]:
         st.subheader("Financial Performance")
         col1, col2 = st.columns(2)
         with col1:
@@ -386,7 +580,6 @@ def main():
             fig4.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig4, use_container_width=True)
 
-        # New Chart: Revenue Heatmap by Region and Time
         col1, col2 = st.columns([2, 1])
         with col1:
             st.subheader("Revenue Heatmap by Region and Time")
@@ -395,9 +588,9 @@ def main():
             fig18.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig18, use_container_width=True)
         with col2:
-            st.write("")  # Empty column for spacing
+            st.write("")
 
-    with tabs[2]:  # Customer & Temporal
+    with tabs[2]:
         st.subheader("Customer & Time Insights")
         col1, col2 = st.columns(2)
         with col1:
@@ -430,9 +623,8 @@ def main():
             fig15.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig15, use_container_width=True)
         with col2:
-            st.write("")  # Empty column for spacing
+            st.write("")
 
-        # New Chart: User Behavior Clustering
         col1, col2 = st.columns([2, 1])
         with col1:
             st.subheader("User Behavior Clusters")
@@ -440,9 +632,9 @@ def main():
             fig19.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig19, use_container_width=True)
         with col2:
-            st.write("")  # Empty column for spacing
+            st.write("")
 
-    with tabs[3]:  # Technical Insights
+    with tabs[3]:
         st.subheader("Technical Performance")
         col1, col2 = st.columns(2)
         with col1:
@@ -467,9 +659,9 @@ def main():
             fig16.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig16, use_container_width=True)
         with col2:
-            st.write("")  # Empty column for spacing
+            st.write("")
 
-    with tabs[4]:  # Data & AI
+    with tabs[4]:
         st.subheader("Data Quality & AI Insights")
         col1, col2 = st.columns(2)
         with col1:
@@ -480,9 +672,8 @@ def main():
             fig9.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig9, use_container_width=True)
         with col2:
-            st.write("")  # Placeholder to maintain layout
+            st.write("")
 
-        # Statistical Analysis
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("Basic Statistics")
@@ -492,7 +683,6 @@ def main():
         with col2:
             st.write("")
 
-        # Anomaly Distribution by Region
         col1, col2 = st.columns([2, 1])
         with col1:
             st.subheader("Anomaly Distribution by Region")
@@ -501,14 +691,12 @@ def main():
             fig17.update_layout(height=300, paper_bgcolor="white", font_color="#333")
             st.plotly_chart(fig17, use_container_width=True)
         with col2:
-            st.write("")  # Empty column for spacing
+            st.write("")
 
-        # Raw Dataset Display
         st.subheader("Raw Dataset (Unfiltered)")
         st.dataframe(df, use_container_width=True)
 
-        # Export Options
-        col1, col2 = st.columns(2)  # Adjusted to 2 columns for CSV and PDF only
+        col1, col2 = st.columns(2)
         with col1:
             csv = filtered_df.to_csv(index=False)
             st.download_button("Export to CSV", data=csv, file_name="global_sales.csv", mime="text/csv")
